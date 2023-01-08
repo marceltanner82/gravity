@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+  <style>
+
+body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+
+  font-size: 20px;
+  font-family: monospace;
+
+}
+
+#canvas {
+  width: 100%;
+  height: 100%;
+}
+
+#fps {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 32px;
+}
+
+.bounciness {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 32px;
+  text-align: center;
+}
+#bounciness {
+  height: 48px;
+  width: 320px;
+}
+
+  </style>
+
+</head>
+
+
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="fps"></div>
+
+<div class="bounciness">
+  <label for="bounciness">Bounciness</label>
+  <br/>
+  <input type="range" id="bounciness" name="bounciness" min="0" max="10" step="1" value="8">
+</div>
+
+</body>
+
+
+
+<script type="text/javascript">
+
+const domFps = document.getElementById("fps");
+const domCanvas = document.getElementById("canvas");
+const ctx = domCanvas.getContext("2d");
+ctx.canvas.width = domCanvas.clientWidth;
+ctx.canvas.height = domCanvas.clientHeight;
+
+const speedFactor = 0.5;
+
+let bounciness;
+
+
+
+
+
+
+class Planet {
+  constructor( mass ) {
+    this.id = planets.length;
+    this.mass = mass;
+    this.radius = mass*0.2;
+    //this.fillStyle = "#" + Math.floor(Math.random()*16777215).toString(16);
+    this.fillStyle = "#" + Math.floor(10000000+Math.random()*5000000).toString(16);
+
+    let x = Math.random()*ctx.canvas.width;
+    let y = Math.random()*ctx.canvas.height;
+    while( !checkPosition(x,y,this.radius) ) {
+      console.log(this.id + " needs new position");
+      x = Math.random()*ctx.canvas.width;
+      y = Math.random()*ctx.canvas.height;
+    }
+
+    this.x = x;
+    this.y = y;
+    this.Vx = 0;
+    this.Vy = 0;
+    this.Vangle = 0;
+    this.v = 0;
+  }
+
+  gravityCalc() {
+    // caluclate vector
+
+    let gravityVx = 0;
+    let gravityVy = 0;
+    for( let i = 0; i < planets.length; i++ ) {
+      if( i !== this.id ) {
+        // if not self
+
+        let deltaX = this.x-planets[i].x;
+        let deltaY = this.y-planets[i].y;
+
+        let distance = Math.sqrt( Math.pow(deltaX,2) + Math.pow(deltaY,2) );
+
+        let angle = Math.atan2(deltaX, deltaY);
+        let f = 9.81 * planets[i].mass / Math.pow(distance,2);
+
+        let deltaVx = speedFactor*-f * Math.sin( angle );
+        let deltaVy = speedFactor*-f * Math.cos( angle );
+        let v = Math.sqrt( Math.pow(deltaVx,2) + Math.pow(deltaVy,2) );
+
+        gravityVx += deltaVx;
+        gravityVy += deltaVy;
+      }
+    }
+
+    this.Vx += gravityVx;
+    this.Vy += gravityVy;
+    this.Vangle = Math.atan2(this.Vx, this.Vy);
+    this.v = Math.sqrt( Math.pow(this.Vx,2) + Math.pow(this.Vy,2) );
+  }
+
+  move() {
+    this.x = this.x + this.Vx;
+    this.y = this.y + this.Vy;
+  }
+
+  draw() {
+    // canvas check
+    let position = alwaysOnScreen(this.x,this.y);
+    this.x = position.x;
+    this.y = position.y;
+
+    //ctx.globalAlpha = 0.25;
+    ctx.fillStyle = this.fillStyle;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+    ctx.closePath();
+    ctx.fill();
+
+    /*
+    ctx.fillStyle = "#000000";
+    ctx.font = '24px sans-serif';
+    ctx.textAlign = "center";
+    ctx.fillText(this.id, this.x, this.y);
+    */
+  }
+}
+
+function checkPosition(x,y,radius) {
+  let vacant = true;
+  for( i = 0; i < planets.length; i++ ) {
+
+    let deltaX = planets[i].x - x;
+    let deltaY = planets[i].y - y;
+    let distance = Math.sqrt( Math.pow(deltaX,2) + Math.pow(deltaY,2) );
+
+    if( distance < radius + planets[i].radius ) {
+      vacant = false;
+      break;
+    }
+  }
+  return vacant;
+}
+
+function collisionCalc() {
+
+  let collisionCounter = 0;
+  let collision = false;
+
+  let i;
+  let j;
+  for( i = 0; i < planets.length; i++ ) {
+
+    for( j = 0; j < planets.length; j++ ) {
+
+      if( j !== i ) {
+
+
+        let newPosition1 = alwaysOnScreen((planets[i].x+planets[i].Vx),(planets[i].y+planets[i].Vy));
+        let newPosition2 = alwaysOnScreen((planets[j].x+planets[j].Vx),(planets[j].y+planets[j].Vy));
+        let deltaX = newPosition1.x - newPosition2.x;
+        let deltaY = newPosition1.y - newPosition2.y;
+
+        let distance = Math.sqrt( Math.pow(deltaX,2) + Math.pow(deltaY,2) );
+
+
+        if( distance < planets[i].radius + planets[j].radius ) {
+
+
+          // calculate angles:
+
+          let hitAngle1 = Math.atan2( deltaX, deltaY );
+
+          let VangleRotated1 = planets[i].Vangle - hitAngle1;
+          let VangleRotatedNew1 = Math.PI - VangleRotated1;
+          planets[i].Vangle = VangleRotatedNew1 + hitAngle1;
+
+          let deltaX2 = newPosition2.x - newPosition1.x;
+          let deltaY2 = newPosition2.y - newPosition1.y;
+          //let deltaX2 = planets[j].x+planets[j].Vx - planets[i].x+planets[i].Vx;
+          //let deltaY2 = planets[j].y+planets[j].Vy - planets[i].y+planets[i].Vy;
+
+          let hitAngle2 = Math.atan2( deltaX2, deltaY2 );
+
+          let VangleRotated2 = planets[j].Vangle - hitAngle2;
+          let VangleRotatedNew2 = Math.PI - VangleRotated2;
+          planets[j].Vangle = VangleRotatedNew2 + hitAngle2;
+
+
+
+          // calculate speeds:
+
+          let m1 = planets[i].mass;
+          let m2 = planets[j].mass;
+          let v1 = planets[i].v;
+          let v2 = planets[j].v;
+
+          /*
+          let v1new = Math.sqrt( m1 * Math.pow(v1,2) + m2 * Math.pow(v2,2) -2) / Math.sqrt( m1 );
+          let v2new = Math.sqrt( m1 * Math.pow(v1,2) + m2 * Math.pow(v2,2) -2) / Math.sqrt( m2 );
+          */
+          let v1new = (m1-m2)/(m1+m2)*v1 + 2*m2/(m1+m2)*v2;
+          let v2new = 2*m1/(m1+m2)*v1 + (m2-m1)/(m1+m2)*v2;
+          v1new = bounciness*v1new;
+          v2new = bounciness*v2new;
+
+          planets[i].v = v1new;
+          planets[j].v = v2new;
+
+          planets[i].Vx = planets[i].v * Math.sin( planets[i].Vangle );
+          planets[i].Vy = planets[i].v * Math.cos( planets[i].Vangle );
+
+          planets[j].Vx = planets[j].v * Math.sin( planets[j].Vangle );
+          planets[j].Vy = planets[j].v * Math.cos( planets[j].Vangle );
+
+          collision = true;
+          break
+
+        }
+      }
+    }
+
+    if( collision ) {
+      collision = false;
+      collisionCounter++;
+
+      if( collisionCounter < 1000 ) {
+        i = -1;
+      }
+
+    }
+
+  }
+
+}
+
+
+function alwaysOnScreen(x,y) {
+  if( x > ctx.canvas.width ) {
+    x = x - ctx.canvas.width;
+  }
+  else if( x < 0 ) {
+    x = ctx.canvas.width - x;
+  }
+  if( y > ctx.canvas.height  ) {
+    y = y - ctx.canvas.height;
+  }
+  else if( y < 0 ) {
+    y = ctx.canvas.height - y;
+  }
+  return {x,y};
+}
+
+
+
+function update() {
+  ctx.canvas.width = domCanvas.clientWidth;
+  ctx.canvas.height = domCanvas.clientHeight;
+  ctx.clearRect( 0, 0, ctx.canvas.width, ctx.canvas.height );
+
+
+  for( let i = 0; i < planets.length; i++ ) {
+    planets[i].gravityCalc();
+  }
+  collisionCalc();
+  for( let i = 0; i < planets.length; i++ ) {
+    planets[i].move();
+    planets[i].draw();
+  }
+
+}
+
+
+
+
+
+
+const planets = [];
+let minDimension = Math.min( ctx.canvas.width, ctx.canvas.height );
+for( let i = 0; i < 40; i++ ) {
+  planets.push( new Planet( minDimension/25+Math.random()*minDimension/25 ) );
+}
+
+
+
+
+
+
+document.addEventListener('wheel', function(e) {
+  //console.log( e.deltaY );
+});
+
+
+
+let tick = true;
+let tickTime;
+let fpsCounter;
+let fps;
+function refreshLoop() {
+  window.requestAnimationFrame(() => {
+    const now = performance.now();
+    if( tick ) {
+      tickTime = now;
+      if( fps !== fpsCounter ) {
+        domFps.innerHTML = fpsCounter+"fps";
+      }
+      fps = fpsCounter;
+      fpsCounter = 0;
+      tick = false;
+
+      //update();
+    }
+    else {
+      fpsCounter++;
+      if( now >= tickTime + 1000 ) {
+        tick = true;
+      }
+    }
+
+    update();
+
+    refreshLoop();
+  });
+}
+refreshLoop();
+
+document.body.onkeyup = function(e){
+  if(e.keyCode == 32) {
+    refreshLoop = null;
+  }
+}
+
+var domBounciness = document.getElementById("bounciness");
+bounciness = 0.9 + domBounciness.value/100;
+domBounciness.addEventListener('change', function() {
+  bounciness = 0.9 + this.value/100;
+});
+
+</script>
+
+</html>
